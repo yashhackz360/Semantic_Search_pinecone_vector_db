@@ -1,4 +1,6 @@
 pandas
+numpy
 sentence-transformers
-pinecone-client[grpc]
+pinecone-client
 python-dotenv
+scikit-learn
