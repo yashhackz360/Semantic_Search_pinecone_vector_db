@@ -12,6 +12,8 @@ This project demonstrates how to build a **semantic search application** using *
 - [Configuration](#-configuration)
 - [Usage](#-usage)
 - [How It Works](#️-how-it-works)
+- [Query Processing Explained](#-query-processing-explained)
+- [Main Code Logic](#-main-code-logic)
 - [Customization](#-customization)
 - [References](#-references)
 
@@ -36,15 +38,15 @@ This repository demonstrates semantic search on a sample dataset (`laptop_data_c
 
 ## 🗂️ Project Structure
 
-| File/Folder            | Description                                |
-|------------------------|--------------------------------------------|
-| `cosine_main.py`       | Search using cosine similarity             |
-| `dotproduct_main.py`   | Search using dot product similarity        |
-| `query_handler.py`     | Handles and processes user queries         |
-| `query_preprocessing.py` | Preprocessing logic for queries         |
-| `laptop_data_cleaned.csv` | Sample dataset (laptop product data)   |
-| `requirements.txt`     | Python dependencies                        |
-| `README.md`            | Project documentation                      |
+| File/Folder              | Description                                |
+|--------------------------|--------------------------------------------|
+| `cosine_main.py`         | Search using cosine similarity             |
+| `dotproduct_main.py`     | Search using dot product similarity        |
+| `query_handler.py`       | Handles and processes user queries         |
+| `query_preprocessing.py` | Preprocessing logic for queries            |
+| `laptop_data_cleaned.csv`| Sample dataset (laptop product data)       |
+| `requirements.txt`       | Python dependencies                        |
+| `README.md`              | Project documentation                      |
 
 ---
 
@@ -108,25 +110,123 @@ Enter your search query when prompted.
 ## ⚙️ How It Works
 
 1. **Embedding**  
-   Each record in the dataset is converted into a **vector** using a language model.
+   Each row in the CSV is transformed into a **descriptive sentence** and encoded as a vector.
 
 2. **Upsert to Pinecone**  
-   These vectors are stored in a Pinecone **index**.
+   The encoded vectors are stored in a Pinecone index.
 
 3. **Query Handling**  
-   User queries are **preprocessed** and converted into a **query vector**.
+   A user query is parsed, converted to a semantic sentence, embedded, and used for querying.
 
-4. **Semantic Search**  
-   The query vector is compared with stored vectors using a **similarity metric**.  
-   The most similar records are retrieved.
+4. **Hybrid Search + Rerank**  
+   Combines **semantic** similarity (vector) and **keyword-based** similarity (TF-IDF), reranks using a **CrossEncoder**, and returns top results.
+
+---
+
+## 🧪 Query Processing Explained
+
+### 📁 `query_handler.py`
+
+This module prompts the user:
+
+```python
+def get_query():
+    print("\n=== Laptop Semantic Search ===")
+    return input("Enter your search query: ")
+```
+
+### 📁 `query_preprocessing.py`
+
+Uses **regex** to extract structured data from natural language input:
+
+```python
+def parse_user_query(query):
+    ...
+    return {
+        'Company': ...,
+        'TypeName': "N/A",
+        'Ram': ...,
+        'Cpu_brand': ...,
+        'SSD': ...,
+        'HDD': ...,
+        'Gpu_brand': ...,
+        'Os': ...,
+        'Price': ...
+    }
+```
+
+#### 🧠 Example
+
+**Input:**
+```
+Looking for a Dell laptop with 16GB RAM, 512GB SSD, Intel CPU, under ₹60000
+```
+
+**Parsed Output:**
+```json
+{
+  "Company": "Dell",
+  "Ram": "16",
+  "Cpu_brand": "Intel",
+  "SSD": "512",
+  "HDD": "0",
+  "Gpu_brand": "N/A",
+  "Os": "N/A",
+  "Price": "60000"
+}
+```
+
+Then converted to:
+```
+"The Dell N/A is a laptop equipped with 16 GB of RAM and an Intel processor. It offers 512 GB SSD storage..."
+```
+
+---
+
+## 💻 Main Code Logic
+
+### 🔁 `cosine_main.py` / `dotproduct_main.py`
+
+Both scripts follow the same logic, with a different similarity metric (`cosine` vs `dotproduct`).
+
+### 🔧 Key Steps:
+
+1. **Environment Setup**
+   - Load `.env`
+   - Load SentenceTransformer and CrossEncoder models
+
+2. **Index Initialization**
+   - Create Pinecone index if not exists
+   - Load CSV data and generate descriptive sentences
+   - Encode using SentenceTransformer
+   - Upsert vectors into Pinecone
+
+3. **Query to Vector Pipeline**
+   - Accept user input
+   - Parse and structure using regex
+   - Generate a semantic query sentence
+   - Encode query as a vector
+
+4. **Hybrid Search Process**
+   - Query Pinecone (semantic match)
+   - TF-IDF match on all sentences
+   - Combine results
+   - Rerank using CrossEncoder
+   - Final score:  
+     \[
+     \text{final\_score} = \alpha \cdot \text{semantic\_score} + (1 - \alpha) \cdot \text{keyword\_score}
+     \]
+
+5. **Result Display**
+   - Top matches with metadata and score shown to user
 
 ---
 
 ## 🛠️ Customization
 
-- 🔄 **Change Dataset**: Replace `laptop_data_cleaned.csv` with your own CSV file.
-- 🧠 **Switch Embedding Model**: Modify the embedding logic in the script.
-- 🧮 **Adjust Similarity Metric**: Use **cosine**, **dot product**, or implement others like **Euclidean distance**.
+- 🔄 **Change Dataset**: Replace `laptop_data_cleaned.csv` with your own data
+- 🧠 **Switch Embedding Model**: Update SentenceTransformer
+- 🧮 **Change Similarity Metric**: Use cosine, dot product, or custom
 
 ---
 
@@ -134,4 +234,7 @@ Enter your search query when prompted.
 
 - [Pinecone Docs – Semantic Search](https://docs.pinecone.io/docs/semantic-search)
 - [Pinecone Learn – Tutorials](https://www.pinecone.io/learn/)
-- [Pinecone Example Projects](https://github.com/pinecone-io/examples)
+- [Sentence Transformers](https://www.sbert.net/)
+- [Hugging Face CrossEncoder](https://huggingface.co/cross-encoder)
+
+---
